@@ -20,9 +20,11 @@
     .title{display:flex;align-items:center;gap:12px}
     h1{font-size:22px;margin:0}
     .date{font-size:14px;color:var(--muted)}
+    .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
     .btn{padding:10px 14px;border:1px solid #374151;border-radius:12px;background:#0b1224;color:var(--text);cursor:pointer}
     .btn:hover{border-color:#475569}
     .btn.ghost{background:transparent}
+    .badge{font-size:11px;padding:4px 8px;border:1px solid #334155;border-radius:999px;background:#0b1224;color:var(--muted)}
     .note{font-size:12px;color:var(--muted)}
     .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
     @media (max-width:1000px){.grid{grid-template-columns:repeat(3,1fr)}}
@@ -34,15 +36,15 @@
     .dot.g{background:var(--green)}
     .dot.r{background:var(--red)}
     .dot.p{background:transparent;border:2px solid var(--gray)}
-    .badge{position:absolute;top:10px;left:10px;font-size:11px;padding:4px 8px;border:1px solid #334155;border-radius:999px;background:#0b1224;color:var(--muted)}
+    .excuse-badge{position:absolute;top:10px;left:10px;font-size:11px;padding:4px 8px;border:1px solid #334155;border-radius:999px;background:#0b1224;color:var(--muted);max-width:55%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .overlay{position:fixed;inset:0;background:rgba(2,6,23,.6);display:none;align-items:center;justify-content:center;padding:16px;z-index:30}
     .overlay.show{display:flex}
     .modal{width:min(520px,95vw);background:#0e1630;border:1px solid #334155;border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.5);padding:18px}
     .modal h3{margin:0 0 8px;font-size:18px}
     .modal p{margin:6px 0 12px;color:#cbd5e1;font-size:14px}
     .actions{display:flex;gap:10px;flex-wrap:wrap}
-    .btn.success{border-color:transparent;background:linear-gradient(180deg,#34d399 0%,#16a34a 100%);color:#062012;font-weight:700}
-    .btn.danger{border-color:transparent;background:linear-gradient(180deg,#fb7185 0%,#ef4444 100%);color:#0b1224;font-weight:700}
+    .btn.success{border-color:transparent;background:linear-gradient(180deg,#34d399,#16a34a);color:#062012;font-weight:700}
+    .btn.danger{border-color:transparent;background:linear-gradient(180deg,#fb7185,#ef4444);color:#0b1224;font-weight:700}
     .field{display:flex;flex-direction:column;gap:6px;margin:8px 0 12px}
     .input{padding:10px 12px;border:1px solid #334155;border-radius:12px;background:#0b1224;color:var(--text)}
     .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#052e1c;color:#e7fff3;border:1px solid rgba(16,185,129,.4);padding:10px 14px;border-radius:12px;display:none;z-index:40}
@@ -63,8 +65,13 @@
         <span class="badge">غير تجاري</span>
         <div class="date" id="today"></div>
       </div>
-      <div>
+      <div class="toolbar">
+        <!-- مكان عرض اسم/إيميل المستخدم -->
+        <span id="userName" class="badge" title="اسم المستخدم"></span>
+        <span id="userEmail" class="badge" title="البريد"></span>
+        <!-- أزرار التحكم -->
         <button class="btn ghost" id="resetDay">تصفير يومي</button>
+        <button class="btn ghost" onclick="appLogout()">خروج</button>
       </div>
     </header>
 
@@ -80,6 +87,7 @@
     <div class="grid" id="grid"></div>
   </div>
 
+  <!-- Modal -->
   <div class="overlay" id="overlay">
     <div class="modal">
       <h3 id="modalTitle">عنوان</h3>
@@ -92,6 +100,7 @@
   <div class="toast" id="toast">بارك الله فيك</div>
 
 <script>
+/* ===== منطق الموقع (بدون فايربيس) كما اتفقنا ===== */
 const $ = (q, root=document) => root.querySelector(q);
 const todayKey = () => new Date().toISOString().slice(0,10);
 
@@ -104,6 +113,7 @@ const defaultDay = () => ({
   wird:{type:'wird',state:'pending'}
 });
 
+// تخزين محلي كـ fallback (سيجري استبداله لاحقًا بفايربيس)
 function loadDay(){
   const key = 'day:'+todayKey();
   const raw = localStorage.getItem(key);
@@ -141,7 +151,7 @@ function renderGrid(){
 
     card.innerHTML = `
       <div class="name">${prayerName(key)}</div>
-      ${item.excuse ? `<div class="badge" title="العذر">${item.excuse}</div>`:''}
+      ${item.excuse ? `<div class="excuse-badge" title="العذر">${item.excuse}</div>`:''}
       <div class="state">
         <span><span class="dot ${dotClass}"></span> ${stateText}</span>
         ${timeLabel}
@@ -157,7 +167,7 @@ function renderGrid(){
 function onCardClick(key){
   const item = day[key];
   if(item.type==='wird'){
-    // ورد يومي
+    // ورد يومي: لا عذر لك
     openModal({
       title:'هل قرأت وردك اليوم؟',
       actionsBuilder:(actions)=>{
@@ -181,7 +191,7 @@ function onCardClick(key){
       }
     });
   } else {
-    // الصلوات
+    // الصلوات: أنجزت أو لم أنجز + عذر
     openModal({
       title:`تحديث ${prayerName(key)}`,
       actionsBuilder:(actions)=>{
@@ -245,6 +255,83 @@ function init(){
   renderGrid();
 }
 init();
+</script>
+
+<!-- ===== فايربيس: حماية الصفحة + عرض المستخدم + ربط Firestore ===== -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+/* إعدادات مشروعك */
+const firebaseConfig = {
+  apiKey: "AIzaSyBhgjrD1MQmmDfrg8JD2Wj0QrnSre3zJ8",
+  authDomain: "habit-tracker-7ccd1.firebaseapp.com",
+  projectId: "habit-tracker-7ccd1",
+  storageBucket: "habit-tracker-7ccd1.appspot.com",
+  messagingSenderId: "890195716939",
+  appId: "1:890195716939:web:2667409802ce22366b56ce",
+  measurementId: "G-ZJLNEQXWD"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+/* أدوات من سكربت الصفحة */
+const todayKeyStr = () => new Date().toISOString().slice(0,10);
+
+/* مرجع وثيقة اليوم */
+let dayDocRef = null;
+
+/* حماية الصفحة + تحميل/حفظ اليوم */
+onAuthStateChanged(auth, async (user)=>{
+  if(!user){ window.location.href = 'login.html'; return; }
+  const providerId = (user.providerData[0]?.providerId)||'password';
+  if(providerId==='password' && !user.emailVerified){ window.location.href = 'login.html'; return; }
+
+  // عرض الاسم/الإيميل
+  const nameEl = document.getElementById('userName');
+  const emailEl = document.getElementById('userEmail');
+  if(nameEl)  nameEl.textContent  = user.displayName ? user.displayName : '';
+  if(emailEl) emailEl.textContent = user.email || '';
+
+  // مرجع اليوم
+  dayDocRef = doc(db, 'users', user.uid, 'days', todayKeyStr());
+
+  // احتفظ بنسخة من دالة الحفظ المحلية
+  const localSave = window.saveDay;
+
+  try{
+    // اقرأ من السحابة إن وُجد
+    const snap = await getDoc(dayDocRef);
+    if(snap.exists()){
+      window.day = snap.data();
+      if(typeof renderGrid === 'function') renderGrid();
+    }else{
+      // لو غير موجود، احفظ الوضع الحالي أول مرة
+      await setDoc(dayDocRef, window.day || {});
+    }
+
+    // استبدل saveDay لتكتب محليًا + على السحابة
+    window.saveDay = async (data)=>{
+      try{
+        localSave && localSave(data); // محلي كـ نسخ احتياطي
+        await setDoc(dayDocRef, data, { merge:false }); // سحابي
+      }catch(e){
+        console.error('Firestore save error:', e);
+      }
+    };
+  }catch(err){
+    console.error(err);
+  }
+});
+
+/* زر خروج عام */
+window.appLogout = async ()=>{
+  await signOut(auth);
+  window.location.href = 'login.html';
+};
 </script>
 </body>
 </html>
