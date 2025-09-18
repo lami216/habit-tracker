@@ -62,7 +62,7 @@
     <header>
       <div class="title">
         <h1>هابيت تراكر – الصلاة والورد</h1>
-        <span class="badge">غير تجاري</span>
+        <span class="badge">Lami</span>
         <div class="date" id="today"></div>
       </div>
       <div class="toolbar">
@@ -83,6 +83,13 @@
       </div>
       <div class="note">انقر على المربعات لتحديث الحالة</div>
     </section>
+
+    <!-- ✅ إضافة اختيار التاريخ (سجل الأيام) -->
+    <div style="margin:10px 0">
+      <label for="datePicker">اختر تاريخ:</label>
+      <input type="date" id="datePicker" class="input">
+      <span id="viewNote" class="badge" style="display:none">عرض فقط للتاريخ المختار</span>
+    </div>
 
     <div class="grid" id="grid"></div>
   </div>
@@ -137,8 +144,15 @@ let day = loadDay();
 const grid = $('#grid');
 const itemsOrder = ['fajr','dhuhr','asr','maghrib','isha','wird'];
 
+// وضع العرض حسب التاريخ (عرض فقط إن كان غير اليوم)
+let viewDate = null;
+
 function renderGrid(){
   grid.innerHTML = '';
+  const isViewOnly = viewDate && viewDate !== todayKey();
+  const viewNote = $('#viewNote');
+  if(viewNote) viewNote.style.display = isViewOnly ? 'inline-block' : 'none';
+
   itemsOrder.forEach(key => {
     const item = day[key];
     const card = document.createElement('div');
@@ -158,8 +172,12 @@ function renderGrid(){
       </div>
     `;
 
-    if(item.state==='pending'){ card.addEventListener('click', ()=> onCardClick(key)); }
-    else if(item.state==='missed' && item.excuse){ card.addEventListener('click', ()=> showExcuse(key,item)); }
+    // في حالة "عرض فقط" لا نسمح بالتعديل، لكن نسمح بقراءة العذر
+    if(!isViewOnly && item.state==='pending'){ 
+      card.addEventListener('click', ()=> onCardClick(key)); 
+    } else if(item.state==='missed' && item.excuse){ 
+      card.addEventListener('click', ()=> showExcuse(key,item)); 
+    }
     grid.appendChild(card);
   });
 }
@@ -253,6 +271,48 @@ function init(){
   $('#today').textContent = new Date().toLocaleDateString('ar-EG',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
   $('#resetDay').onclick = ()=>{ if(confirm('تأكيد: سيُعاد تعيين حالة هذا اليوم فقط.')){ day=defaultDay(); saveDay(day); renderGrid(); setToast('تم التصفير'); }};
   renderGrid();
+
+  // ✅ مستمع اختيار التاريخ (عرض فقط)
+  const dp = document.getElementById('datePicker');
+  if(dp){
+    dp.addEventListener('change', async (e)=>{
+      const picked = e.target.value; // YYYY-MM-DD
+      viewDate = picked || null;
+
+      // لو ليس لدينا auth/db جاهزين، اكتفي بإخفاء/إظهار شارة العرض فقط
+      if(!window.firebaseStuff || !window.firebaseStuff.auth || !window.firebaseStuff.db){
+        renderGrid();
+        return;
+      }
+
+      const { auth, db } = window.firebaseStuff;
+      const { getDoc, doc } = window.firebaseFns || {};
+      if(!getDoc || !doc){ renderGrid(); return; }
+
+      const uid = auth.currentUser?.uid;
+      if(!uid){ window.location.href='login.html'; return; }
+
+      // جلب بيانات اليوم المختار من Firestore (عرض فقط)
+      try{
+        const ref = doc(db, 'users', uid, 'days', picked);
+        const snap = await getDoc(ref);
+        if(snap.exists()){
+          window.day = snap.data();
+          renderGrid();
+        }else{
+          alert("لا يوجد سجل محفوظ لهذا اليوم.");
+          // ارجع عرض اليوم الحالي
+          viewDate = null;
+          // نسترجع وثيقة اليوم الحالي من التخزين المحلي (كعرض سريع)
+          day = loadDay();
+          renderGrid();
+        }
+      }catch(err){
+        console.error(err);
+        alert("تعذر تحميل هذا التاريخ الآن.");
+      }
+    });
+  }
 }
 init();
 </script>
@@ -313,9 +373,14 @@ onAuthStateChanged(auth, async (user)=>{
       await setDoc(dayDocRef, window.day || {});
     }
 
-    // استبدل saveDay لتكتب محليًا + على السحابة
+    // استبدل saveDay لتكتب محليًا + على السحابة (لليوم الحالي فقط)
     window.saveDay = async (data)=>{
       try{
+        // لو المستخدم يعرض يوم غير اليوم، لا نسمح بالحفظ (عرض فقط)
+        if(window.viewDate && window.viewDate !== todayKeyStr()){
+          // مجرد تجاهل للحفظ على السحابة، مع إعادة عرض
+          return;
+        }
         localSave && localSave(data); // محلي كـ نسخ احتياطي
         await setDoc(dayDocRef, data, { merge:false }); // سحابي
       }catch(e){
@@ -326,6 +391,11 @@ onAuthStateChanged(auth, async (user)=>{
     console.error(err);
   }
 });
+
+/* مخرجات للاستخدام من سكربت الصفحة */
+window.firebaseStuff = { auth, db };
+// لإعادة الاستخدام دون import ديناميكي
+window.firebaseFns = { getDoc, doc };
 
 /* زر خروج عام */
 window.appLogout = async ()=>{
