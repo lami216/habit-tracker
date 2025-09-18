@@ -1,0 +1,45 @@
+<!DOCTYPE html><html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>إنشاء حساب – هابيت تراكر</title>
+</head>
+<body>
+<h2>إنشاء حساب جديد</h2>
+<input id="email" placeholder="اكتب بريدك">
+<button onclick="sendLink()">أرسل رابط التفعيل</button>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import { getAuth, sendSignInLinkToEmail } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBhgjrD1MQmmDfrg8JD2Wj0QrnSre3zJ8",
+  authDomain: "habit-tracker-7ccd1.firebaseapp.com",
+  projectId: "habit-tracker-7ccd1",
+  storageBucket: "habit-tracker-7ccd1.appspot.com",
+  messagingSenderId: "890195716939",
+  appId: "1:890195716939:web:2667409802ce22366b56ce",
+  measurementId: "G-ZJLNEQXWD"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+window.sendLink = async ()=>{
+  const email = document.getElementById('email').value;
+  const actionCodeSettings = {
+    url: window.location.origin + '/set-password.html', // بعد التفعيل يروح هنا
+    handleCodeInApp: true
+  };
+  try{
+    await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+    window.localStorage.setItem('emailForSignIn', email);
+    alert("تم إرسال رابط التفعيل لبريدك. افحص البريد/السبام.");
+  }catch(e){
+    alert(e.message);
+  }
+};
+</script>
+</body>
+</html>
