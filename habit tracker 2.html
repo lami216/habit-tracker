@@ -1,0 +1,250 @@
+<!DOCTYPE html><html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>هابيت تراكر – الصلاة والورد اليومي</title>
+  <style>
+    :root{
+      --bg:#0f172a;
+      --card:#1f2937;
+      --muted:#94a3b8;
+      --text:#e5e7eb;
+      --green:#16a34a;
+      --red:#dc2626;
+      --gray:#64748b;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;background:linear-gradient(160deg,#0b1022 0%,#101735 30%,#0f172a 100%);color:var(--text);font-family:"Tajawal","Noto Kufi Arabic",system-ui,Segoe UI,Arial}
+    .container{max-width:1100px;margin-inline:auto;padding:16px 18px 28px}
+    header{display:flex;flex-wrap:wrap;align-items:center;gap:12px;justify-content:space-between;margin-bottom:16px}
+    .title{display:flex;align-items:center;gap:12px}
+    h1{font-size:22px;margin:0}
+    .date{font-size:14px;color:var(--muted)}
+    .btn{padding:10px 14px;border:1px solid #374151;border-radius:12px;background:#0b1224;color:var(--text);cursor:pointer}
+    .btn:hover{border-color:#475569}
+    .btn.ghost{background:transparent}
+    .note{font-size:12px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+    @media (max-width:1000px){.grid{grid-template-columns:repeat(3,1fr)}}
+    @media (max-width:620px){.grid{grid-template-columns:repeat(2,1fr)}}
+    .card{background:var(--card);border:1px solid #334155;border-radius:16px;min-height:110px;padding:12px;display:flex;flex-direction:column;gap:8px;position:relative;cursor:pointer;}
+    .card .name{font-weight:700;font-size:16px}
+    .state{margin-top:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);justify-content:space-between}
+    .dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+    .dot.g{background:var(--green)}
+    .dot.r{background:var(--red)}
+    .dot.p{background:transparent;border:2px solid var(--gray)}
+    .badge{position:absolute;top:10px;left:10px;font-size:11px;padding:4px 8px;border:1px solid #334155;border-radius:999px;background:#0b1224;color:var(--muted)}
+    .overlay{position:fixed;inset:0;background:rgba(2,6,23,.6);display:none;align-items:center;justify-content:center;padding:16px;z-index:30}
+    .overlay.show{display:flex}
+    .modal{width:min(520px,95vw);background:#0e1630;border:1px solid #334155;border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.5);padding:18px}
+    .modal h3{margin:0 0 8px;font-size:18px}
+    .modal p{margin:6px 0 12px;color:#cbd5e1;font-size:14px}
+    .actions{display:flex;gap:10px;flex-wrap:wrap}
+    .btn.success{border-color:transparent;background:linear-gradient(180deg,#34d399 0%,#16a34a 100%);color:#062012;font-weight:700}
+    .btn.danger{border-color:transparent;background:linear-gradient(180deg,#fb7185 0%,#ef4444 100%);color:#0b1224;font-weight:700}
+    .field{display:flex;flex-direction:column;gap:6px;margin:8px 0 12px}
+    .input{padding:10px 12px;border:1px solid #334155;border-radius:12px;background:#0b1224;color:var(--text)}
+    .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#052e1c;color:#e7fff3;border:1px solid rgba(16,185,129,.4);padding:10px 14px;border-radius:12px;display:none;z-index:40}
+    .toast.show{display:block}
+    .legend{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px}
+    .legend .k{display:inline-flex;align-items:center;gap:6px}
+    .legend .s{width:12px;height:12px;border-radius:50%;display:inline-block}
+    .s.g{background:var(--green)}
+    .s.r{background:var(--red)}
+    .s.p{background:transparent;border:2px solid var(--gray)}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title">
+        <h1>هابيت تراكر – الصلاة والورد</h1>
+        <span class="badge">غير تجاري</span>
+        <div class="date" id="today"></div>
+      </div>
+      <div>
+        <button class="btn ghost" id="resetDay">تصفير يومي</button>
+      </div>
+    </header>
+
+    <section style="display:flex;align-items:center;justify-content:space-between;margin:8px 0 14px">
+      <div class="legend">
+        <span class="k"><span class="s g"></span> منجز</span>
+        <span class="k"><span class="s r"></span> مفقود (مع عذر)</span>
+        <span class="k"><span class="s p"></span> قيد المتابعة</span>
+      </div>
+      <div class="note">انقر على المربعات لتحديث الحالة</div>
+    </section>
+
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <h3 id="modalTitle">عنوان</h3>
+      <p id="modalDesc">وصف</p>
+      <div id="modalBody"></div>
+      <div class="actions" id="modalActions"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">بارك الله فيك</div>
+
+<script>
+const $ = (q, root=document) => root.querySelector(q);
+const todayKey = () => new Date().toISOString().slice(0,10);
+
+const defaultDay = () => ({
+  fajr:{type:'prayer',state:'pending'},
+  dhuhr:{type:'prayer',state:'pending'},
+  asr:{type:'prayer',state:'pending'},
+  maghrib:{type:'prayer',state:'pending'},
+  isha:{type:'prayer',state:'pending'},
+  wird:{type:'wird',state:'pending'}
+});
+
+function loadDay(){
+  const key = 'day:'+todayKey();
+  const raw = localStorage.getItem(key);
+  if(raw){ try{ return JSON.parse(raw); }catch{} }
+  return defaultDay();
+}
+function saveDay(data){ localStorage.setItem('day:'+todayKey(), JSON.stringify(data)); }
+
+function setToast(msg){
+  const t = $('#toast');
+  t.textContent = msg || 'تم الحفظ';
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1600);
+}
+
+function prayerName(k){
+  return ({fajr:'الفجر',dhuhr:'الظهر',asr:'العصر',maghrib:'المغرب',isha:'العشاء',wird:'الورد اليومي'})[k] || k;
+}
+
+let day = loadDay();
+const grid = $('#grid');
+const itemsOrder = ['fajr','dhuhr','asr','maghrib','isha','wird'];
+
+function renderGrid(){
+  grid.innerHTML = '';
+  itemsOrder.forEach(key => {
+    const item = day[key];
+    const card = document.createElement('div');
+    card.className = "card";
+    card.dataset.key = key;
+
+    let dotClass = item.state==='done'?'g': item.state==='missed'?'r':'p';
+    let stateText = item.state==='done'?'منجز': item.state==='missed'?'مفقود':'قيد المتابعة';
+    let timeLabel = item.time ? `<span style="font-size:11px;color:#9ca3af">${item.time}</span>` : '';
+
+    card.innerHTML = `
+      <div class="name">${prayerName(key)}</div>
+      ${item.excuse ? `<div class="badge" title="العذر">${item.excuse}</div>`:''}
+      <div class="state">
+        <span><span class="dot ${dotClass}"></span> ${stateText}</span>
+        ${timeLabel}
+      </div>
+    `;
+
+    if(item.state==='pending'){ card.addEventListener('click', ()=> onCardClick(key)); }
+    else if(item.state==='missed' && item.excuse){ card.addEventListener('click', ()=> showExcuse(key,item)); }
+    grid.appendChild(card);
+  });
+}
+
+function onCardClick(key){
+  const item = day[key];
+  if(item.type==='wird'){
+    // ورد يومي
+    openModal({
+      title:'هل قرأت وردك اليوم؟',
+      actionsBuilder:(actions)=>{
+        const yes = document.createElement('button'); yes.className='btn success'; yes.textContent='قرأت';
+        yes.onclick=()=>{
+          day[key]={type:'wird',state:'done',time:new Date().toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'})};
+          saveDay(day); renderGrid(); closeModal(); setToast('بارك الله فيك');
+        };
+        const no = document.createElement('button'); no.className='btn danger'; no.textContent='لم أقرأ';
+        no.onclick=()=>{
+          const body = $('#modalBody'); body.innerHTML='<p style="margin:0;color:#fecaca">لا عذر لك، امشِ اقرأ.</p>';
+          const actions2 = $('#modalActions'); actions2.innerHTML='';
+          const doneNow = document.createElement('button'); doneNow.className='btn success'; doneNow.textContent='قرأت الآن';
+          doneNow.onclick=()=>{
+            day[key]={type:'wird',state:'done',time:new Date().toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'})};
+            saveDay(day); renderGrid(); closeModal(); setToast('بارك الله فيك');
+          };
+          actions2.appendChild(doneNow);
+        };
+        actions.appendChild(yes); actions.appendChild(no);
+      }
+    });
+  } else {
+    // الصلوات
+    openModal({
+      title:`تحديث ${prayerName(key)}`,
+      actionsBuilder:(actions)=>{
+        const yes = document.createElement('button'); yes.className='btn success'; yes.textContent='أنجزت';
+        yes.onclick=()=>{
+          day[key]={type:item.type,state:'done',time:new Date().toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'})};
+          saveDay(day); renderGrid(); closeModal(); setToast('بارك الله فيك');
+        };
+        const no = document.createElement('button'); no.className='btn danger'; no.textContent='لم أنجز';
+        no.onclick=()=>{
+          const body=$('#modalBody'); body.innerHTML='';
+          const f=document.createElement('div'); f.className='field';
+          const lbl=document.createElement('label'); lbl.textContent='ما هو عذرك؟';
+          const ta=document.createElement('textarea'); ta.className='input'; ta.rows=3; ta.placeholder='اكتب عذرك هنا';
+          f.appendChild(lbl); f.appendChild(ta); body.appendChild(f);
+          const actions2=$('#modalActions'); actions2.innerHTML='';
+          const save=document.createElement('button'); save.className='btn danger'; save.textContent='تأكيد العذر';
+          save.onclick=()=>{
+            const excuse=ta.value.trim()||'—';
+            day[key]={type:item.type,state:'missed',excuse,time:new Date().toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'})};
+            saveDay(day); renderGrid(); closeModal();
+          };
+          actions2.appendChild(save);
+        };
+        actions.appendChild(yes); actions.appendChild(no);
+      }
+    });
+  }
+}
+
+function showExcuse(key,item){
+  openModal({
+    title:`${prayerName(key)} – سبب عدم الأداء`,
+    bodyBuilder:(body)=>{
+      const box=document.createElement('div'); box.className='field';
+      const ta=document.createElement('textarea'); ta.className='input'; ta.rows=3; ta.value=item.excuse; ta.readOnly=true;
+      body.appendChild(ta);
+    },
+    actionsBuilder:(actions)=>{
+      const close=document.createElement('button'); close.className='btn'; close.textContent='إغلاق'; close.onclick=closeModal;
+      actions.appendChild(close);
+    }
+  });
+}
+
+function openModal({title,desc,bodyBuilder,actionsBuilder}){
+  $('#modalTitle').textContent = title;
+  $('#modalDesc').textContent = desc || '';
+  $('#modalBody').innerHTML='';
+  $('#modalActions').innerHTML='';
+  bodyBuilder && bodyBuilder($('#modalBody'));
+  actionsBuilder && actionsBuilder($('#modalActions'));
+  $('#overlay').classList.add('show');
+}
+function closeModal(){ $('#overlay').classList.remove('show'); }
+$('#overlay').addEventListener('click', (e)=>{ if(e.target.id==='overlay') closeModal();});
+
+function init(){
+  $('#today').textContent = new Date().toLocaleDateString('ar-EG',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  $('#resetDay').onclick = ()=>{ if(confirm('تأكيد: سيُعاد تعيين حالة هذا اليوم فقط.')){ day=defaultDay(); saveDay(day); renderGrid(); setToast('تم التصفير'); }};
+  renderGrid();
+}
+init();
+</script>
+</body>
+</html>
