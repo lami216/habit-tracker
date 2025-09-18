@@ -5,12 +5,12 @@
 <title>تسجيل الدخول – هابيت تراكر</title>
 <style>
   :root{
-    --bg1:#0b1022; --bg2:#0f172a; --tile:#0d1530; --panel:#0e1630;
-    --text:#e5e7eb; --muted:#94a3b8; --ring:#22d3ee;
-    --green:#16a34a;
+    --bg1:#0b1022; --bg2:#0f172a;
+    --text:#e5e7eb; --muted:#94a3b8;
   }
   *{box-sizing:border-box}
-  html,body{height:100%;margin:0;font-family:"Tajawal","Noto Kufi Arabic",system-ui,Segoe UI,Arial;color:var(--text);background:radial-gradient(1000px 500px at 50% -200px,rgba(34,211,238,.09),transparent 60%),linear-gradient(160deg,var(--bg1),var(--bg2))}
+  html,body{height:100%;margin:0;font-family:"Tajawal","Noto Kufi Arabic",system-ui,Segoe UI,Arial;color:var(--text);
+    background:radial-gradient(1000px 500px at 50% -200px,rgba(34,211,238,.09),transparent 60%),linear-gradient(160deg,var(--bg1),var(--bg2))}
   .pattern{position:fixed;inset:0;pointer-events:none;background-image:
     linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px),
     linear-gradient(0deg,  rgba(255,255,255,.03) 1px, transparent 1px);
@@ -28,7 +28,6 @@
   .muted{color:var(--muted);font-size:12px}
   .hr{height:1px;background:#223047;margin:12px 0}
   .logo{width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;background:radial-gradient(circle at 50% 40%, #22d3ee, #0284c7);box-shadow:0 0 0 3px rgba(34,211,238,.15) inset}
-  .center{display:flex;align-items:center;justify-content:center;gap:8px}
   .note{background:#0b2328;border:1px solid rgba(34,211,238,.3);padding:10px;border-radius:12px;margin-top:8px;color:#a6f3ff}
   .link{color:#7dd3fc;text-decoration:underline;cursor:pointer}
 </style>
@@ -47,6 +46,9 @@
     <div class="field">
       <label>كلمة السر</label>
       <input id="pass" class="input" type="password" placeholder="••••••••">
+      <p class="muted" style="margin-top:4px">
+        <span class="link" id="forgotLink">نسيت كلمة السر؟</span>
+      </p>
     </div>
 
     <div class="row">
@@ -58,17 +60,20 @@
     <div class="hr"></div>
     <p class="muted">بعد إنشاء الحساب ستصلك رسالة تأكيد بريد. يجب تأكيد البريد قبل الدخول.</p>
     <div id="msg" class="note" style="display:none"></div>
-    <p class="center muted" style="margin-top:10px">لو تذكّرت بياناتك لاحقًا <span class="link" id="toLogin">اضغط هنا للدخول</span></p>
   </div>
 </div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-  import { getAuth, onAuthStateChanged,
-           createUserWithEmailAndPassword, signInWithEmailAndPassword,
-           GoogleAuthProvider, signInWithPopup,
-           sendEmailVerification, signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+  import {
+    getAuth, onAuthStateChanged,
+    createUserWithEmailAndPassword, signInWithEmailAndPassword,
+    GoogleAuthProvider, signInWithPopup,
+    sendEmailVerification, signOut,
+    sendPasswordResetEmail
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
+  // قيم مشروعك (من لقطة الشاشة)
   const firebaseConfig = {
     apiKey: "AIzaSyBhgjrD1MQmmDfrg8JD2Wj0QrnSre3zJ8",
     authDomain: "habit-tracker-7ccd1.firebaseapp.com",
@@ -88,6 +93,7 @@
   const show = t => { msg.textContent=t; msg.style.display='block'; };
   const hide = ()=> { msg.style.display='none'; };
 
+  // تحويل تلقائي لو المستخدم داخل ومؤكد بريده (أو داخل بجوجل)
   onAuthStateChanged(auth, (user)=>{
     if(!user) return;
     const providerId = (user.providerData[0]?.providerId)||'password';
@@ -96,6 +102,7 @@
     }
   });
 
+  // دخول
   $('#loginBtn').onclick = async ()=>{
     hide();
     const email=$('#email').value.trim(); const pass=$('#pass').value;
@@ -106,6 +113,7 @@
     }catch(e){ show(e.message); }
   };
 
+  // إنشاء حساب + إرسال تأكيد
   $('#registerBtn').onclick = async ()=>{
     hide();
     const email=$('#email').value.trim(); const pass=$('#pass').value;
@@ -116,6 +124,7 @@
     }catch(e){ show(e.message); }
   };
 
+  // جوجل
   $('#googleBtn').onclick = async ()=>{
     hide();
     try{
@@ -124,7 +133,16 @@
     }catch(e){ show(e.message); }
   };
 
-  $('#toLogin').onclick = ()=> document.getElementById('loginBtn').scrollIntoView({behavior:'smooth'});
+  // نسيت كلمة السر
+  document.getElementById('forgotLink').onclick = async ()=>{
+    hide();
+    const email = document.getElementById('email').value.trim();
+    if(!email){ show('اكتب الإيميل أولًا ثم اضغط "نسيت كلمة السر؟"'); return; }
+    try{
+      await sendPasswordResetEmail(auth, email);
+      show('أرسلنا رسالة لإعادة تعيين كلمة السر إلى بريدك. افحص البريد/السبام.');
+    }catch(e){ show(e.message); }
+  };
 </script>
 </body>
 </html>
