@@ -1,0 +1,130 @@
+<!DOCTYPE html><html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>تسجيل الدخول – هابيت تراكر</title>
+<style>
+  :root{
+    --bg1:#0b1022; --bg2:#0f172a; --tile:#0d1530; --panel:#0e1630;
+    --text:#e5e7eb; --muted:#94a3b8; --ring:#22d3ee;
+    --green:#16a34a;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;font-family:"Tajawal","Noto Kufi Arabic",system-ui,Segoe UI,Arial;color:var(--text);background:radial-gradient(1000px 500px at 50% -200px,rgba(34,211,238,.09),transparent 60%),linear-gradient(160deg,var(--bg1),var(--bg2))}
+  .pattern{position:fixed;inset:0;pointer-events:none;background-image:
+    linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px),
+    linear-gradient(0deg,  rgba(255,255,255,.03) 1px, transparent 1px);
+    background-size:28px 28px, 28px 28px;mask-image:radial-gradient(ellipse at 50% -10%, rgba(0,0,0,.8), transparent 60%);}
+  .wrap{min-height:100%;display:grid;place-items:center;padding:18px}
+  .card{width:min(520px,95vw);background:linear-gradient(180deg,#0c1328,#0e1732);border:1px solid #334155;border-radius:18px;padding:18px 18px 16px;box-shadow:0 25px 70px rgba(0,0,0,.5)}
+  h1{margin:0 0 6px;font-size:22px;display:flex;gap:10px;align-items:center}
+  .sub{margin:0 0 14px;color:var(--muted);font-size:13px}
+  .field{display:flex;flex-direction:column;gap:6px;margin:8px 0 12px}
+  .input{padding:12px;border:1px solid #334155;border-radius:12px;background:#0b1224;color:var(--text)}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .btn{padding:10px 14px;border:1px solid #374151;border-radius:12px;background:#0b1224;color:var(--text);cursor:pointer}
+  .btn.primary{border-color:transparent;background:linear-gradient(180deg,#22d3ee,#06b6d4);color:#0b1224;font-weight:700}
+  .btn.success{border-color:transparent;background:linear-gradient(180deg,#34d399,#16a34a);color:#062012;font-weight:700}
+  .muted{color:var(--muted);font-size:12px}
+  .hr{height:1px;background:#223047;margin:12px 0}
+  .logo{width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;background:radial-gradient(circle at 50% 40%, #22d3ee, #0284c7);box-shadow:0 0 0 3px rgba(34,211,238,.15) inset}
+  .center{display:flex;align-items:center;justify-content:center;gap:8px}
+  .note{background:#0b2328;border:1px solid rgba(34,211,238,.3);padding:10px;border-radius:12px;margin-top:8px;color:#a6f3ff}
+  .link{color:#7dd3fc;text-decoration:underline;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="pattern"></div>
+<div class="wrap">
+  <div class="card">
+    <h1><span class="logo">🕌</span> مرحبًا بك</h1>
+    <p class="sub">سجّل دخولك لمتابعة صلواتك ووردك اليومي.</p>
+
+    <div class="field">
+      <label>الإيميل</label>
+      <input id="email" class="input" placeholder="name@example.com">
+    </div>
+    <div class="field">
+      <label>كلمة السر</label>
+      <input id="pass" class="input" type="password" placeholder="••••••••">
+    </div>
+
+    <div class="row">
+      <button class="btn primary" id="loginBtn">تسجيل الدخول</button>
+      <button class="btn" id="registerBtn">إنشاء حساب</button>
+      <button class="btn success" id="googleBtn">الدخول بجوجل</button>
+    </div>
+
+    <div class="hr"></div>
+    <p class="muted">بعد إنشاء الحساب ستصلك رسالة تأكيد بريد. يجب تأكيد البريد قبل الدخول.</p>
+    <div id="msg" class="note" style="display:none"></div>
+    <p class="center muted" style="margin-top:10px">لو تذكّرت بياناتك لاحقًا <span class="link" id="toLogin">اضغط هنا للدخول</span></p>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { getAuth, onAuthStateChanged,
+           createUserWithEmailAndPassword, signInWithEmailAndPassword,
+           GoogleAuthProvider, signInWithPopup,
+           sendEmailVerification, signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBhgjrD1MQmmDfrg8JD2Wj0QrnSre3zJ8",
+    authDomain: "habit-tracker-7ccd1.firebaseapp.com",
+    projectId: "habit-tracker-7ccd1",
+    storageBucket: "habit-tracker-7ccd1.appspot.com",
+    messagingSenderId: "890195716939",
+    appId: "1:890195716939:web:2667409802ce22366b56ce",
+    measurementId: "G-ZJLNEQXWD"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const provider = new GoogleAuthProvider();
+
+  const $ = s => document.querySelector(s);
+  const msg = $('#msg');
+  const show = t => { msg.textContent=t; msg.style.display='block'; };
+  const hide = ()=> { msg.style.display='none'; };
+
+  onAuthStateChanged(auth, (user)=>{
+    if(!user) return;
+    const providerId = (user.providerData[0]?.providerId)||'password';
+    if (user.emailVerified || providerId !== 'password') {
+      window.location.href = 'index.html';
+    }
+  });
+
+  $('#loginBtn').onclick = async ()=>{
+    hide();
+    const email=$('#email').value.trim(); const pass=$('#pass').value;
+    try{
+      const cred=await signInWithEmailAndPassword(auth,email,pass);
+      if(!cred.user.emailVerified){ await signOut(auth); show('يرجى تأكيد بريدك أولاً. تحقق من الإيميل.'); return; }
+      window.location.href='index.html';
+    }catch(e){ show(e.message); }
+  };
+
+  $('#registerBtn').onclick = async ()=>{
+    hide();
+    const email=$('#email').value.trim(); const pass=$('#pass').value;
+    try{
+      const cred=await createUserWithEmailAndPassword(auth,email,pass);
+      await sendEmailVerification(cred.user);
+      show('تم إنشاء الحساب. أرسلنا رسالة تأكيد إلى بريدك—بعد التأكيد ارجع وسجّل الدخول.');
+    }catch(e){ show(e.message); }
+  };
+
+  $('#googleBtn').onclick = async ()=>{
+    hide();
+    try{
+      await signInWithPopup(auth, provider);
+      window.location.href='index.html';
+    }catch(e){ show(e.message); }
+  };
+
+  $('#toLogin').onclick = ()=> document.getElementById('loginBtn').scrollIntoView({behavior:'smooth'});
+</script>
+</body>
+</html>
